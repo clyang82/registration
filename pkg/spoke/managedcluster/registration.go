@@ -56,6 +56,7 @@ func NewClientCertForHubController(
 			Labels: map[string]string{
 				// the label is only an hint for cluster name. Anyone could set/modify it.
 				clientcert.ClusterNameLabel: clusterName,
+				clientcert.ClusterIDLabel:   clusterID,
 			},
 		},
 		Subject: &pkix.Name{
