@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	ocmfeature "open-cluster-management.io/api/feature"
 	"os"
 	"path"
 	"time"
+
+	ocmfeature "open-cluster-management.io/api/feature"
 
 	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
@@ -54,6 +55,7 @@ var AddOnLeaseControllerSyncInterval = 30 * time.Second
 type SpokeAgentOptions struct {
 	ComponentNamespace       string
 	ClusterName              string
+	ClusterID                string
 	AgentName                string
 	BootstrapKubeconfig      string
 	HubKubeconfigSecret      string
@@ -201,7 +203,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 		controllerName := fmt.Sprintf("BootstrapClientCertController@cluster:%s", o.ClusterName)
 		clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-			o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+			o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 			kubeconfigData,
 			// store the secret in the cluster where the agent pod runs
 			namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
@@ -286,7 +288,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	// create another ClientCertForHubController for client certificate rotation
 	controllerName := fmt.Sprintf("ClientCertController@cluster:%s", o.ClusterName)
 	clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-		o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+		o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 		kubeconfigData,
 		namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 		hubKubeInformerFactory.Certificates(),
@@ -465,6 +467,8 @@ func (o *SpokeAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, 
 
 	// load or generate cluster/agent names
 	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames()
+
+	o.ClusterID = string(uuid.NewUUID())
 
 	return nil
 }

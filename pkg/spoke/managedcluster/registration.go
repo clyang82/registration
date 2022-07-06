@@ -27,6 +27,7 @@ import (
 // 2). Or rotate the client certificate referenced by the hub kubeconfig before it become expired;
 func NewClientCertForHubController(
 	clusterName string,
+	clusterID string,
 	agentName string,
 	clientCertSecretNamespace string,
 	clientCertSecretName string,
@@ -45,12 +46,13 @@ func NewClientCertForHubController(
 		AdditionalSecretData: map[string][]byte{
 			clientcert.ClusterNameFile: []byte(clusterName),
 			clientcert.AgentNameFile:   []byte(agentName),
+			clientcert.ClusterIDFile:   []byte(clusterID),
 			clientcert.KubeconfigFile:  kubeconfigData,
 		},
 	}
 	csrOption := clientcert.CSROption{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-", clusterName),
+			GenerateName: fmt.Sprintf("%s-", clusterID),
 			Labels: map[string]string{
 				// the label is only an hint for cluster name. Anyone could set/modify it.
 				clientcert.ClusterNameLabel: clusterName,
@@ -58,10 +60,10 @@ func NewClientCertForHubController(
 		},
 		Subject: &pkix.Name{
 			Organization: []string{
-				fmt.Sprintf("%s%s", user.SubjectPrefix, clusterName),
+				fmt.Sprintf("%s%s", user.SubjectPrefix, clusterID),
 				user.ManagedClustersGroup,
 			},
-			CommonName: fmt.Sprintf("%s%s:%s", user.SubjectPrefix, clusterName, agentName),
+			CommonName: fmt.Sprintf("%s%s:%s", user.SubjectPrefix, clusterID, agentName),
 		},
 		SignerName: certificates.KubeAPIServerClientSignerName,
 		EventFilterFunc: func(obj interface{}) bool {
@@ -76,7 +78,7 @@ func NewClientCertForHubController(
 			}
 
 			// only enqueue csr whose name starts with the cluster name
-			return strings.HasPrefix(accessor.GetName(), fmt.Sprintf("%s-", clusterName))
+			return strings.HasPrefix(accessor.GetName(), fmt.Sprintf("%s-", clusterID))
 		},
 	}
 

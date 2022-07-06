@@ -6,9 +6,10 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"math/rand"
-	ocmfeature "open-cluster-management.io/api/feature"
 	"reflect"
 	"time"
+
+	ocmfeature "open-cluster-management.io/api/feature"
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -39,6 +40,7 @@ const (
 	TLSCertFile = "tls.crt"
 
 	ClusterNameFile = "cluster-name"
+	ClusterIDFile   = "cluster-id"
 	AgentNameFile   = "agent-name"
 
 	ClusterNameLabel = "open-cluster-management.io/cluster-name"
