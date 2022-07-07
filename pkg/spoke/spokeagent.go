@@ -203,7 +203,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 		controllerName := fmt.Sprintf("BootstrapClientCertController@cluster:%s", o.ClusterName)
 		clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-			o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+			o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 			kubeconfigData,
 			// store the secret in the cluster where the agent pod runs
 			namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
@@ -288,13 +288,13 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	// create another ClientCertForHubController for client certificate rotation
 	controllerName := fmt.Sprintf("ClientCertController@cluster:%s", o.ClusterName)
 	clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-		o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+		o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 		kubeconfigData,
 		namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 		hubKubeInformerFactory.Certificates(),
 		managementKubeClient,
 		hubKubeClient,
-		managedcluster.GenerateStatusUpdater(hubClusterClient, o.ClusterName),
+		managedcluster.GenerateStatusUpdater(hubClusterClient, o.ClusterID),
 		controllerContext.EventRecorder,
 		controllerName,
 	)
@@ -467,8 +467,6 @@ func (o *SpokeAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, 
 
 	// load or generate cluster/agent names
 	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames()
-
-	o.ClusterID = string(uuid.NewUUID())
 
 	return nil
 }
