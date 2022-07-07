@@ -55,6 +55,7 @@ var AddOnLeaseControllerSyncInterval = 30 * time.Second
 type SpokeAgentOptions struct {
 	ComponentNamespace       string
 	ClusterName              string
+	ReplaceByClusterID       bool
 	ClusterID                string
 	AgentName                string
 	BootstrapKubeconfig      string
@@ -163,7 +164,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	// start a SpokeClusterCreatingController to make sure there is a spoke cluster on hub cluster
 	spokeClusterCreatingController := managedcluster.NewManagedClusterCreatingController(
-		o.ClusterName, o.SpokeExternalServerURLs,
+		o.ClusterID, o.SpokeExternalServerURLs,
 		spokeClusterCABundle,
 		bootstrapClusterClient,
 		controllerContext.EventRecorder,
@@ -203,7 +204,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 		controllerName := fmt.Sprintf("BootstrapClientCertController@cluster:%s", o.ClusterName)
 		clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-			o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+			o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 			kubeconfigData,
 			// store the secret in the cluster where the agent pod runs
 			namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
@@ -288,7 +289,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	// create another ClientCertForHubController for client certificate rotation
 	controllerName := fmt.Sprintf("ClientCertController@cluster:%s", o.ClusterName)
 	clientCertForHubController, err := managedcluster.NewClientCertForHubController(
-		o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
+		o.ClusterName, o.ClusterID, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 		kubeconfigData,
 		namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 		hubKubeInformerFactory.Certificates(),
@@ -304,7 +305,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	// create ManagedClusterJoiningController to reconcile instances of ManagedCluster on the managed cluster
 	managedClusterJoiningController := managedcluster.NewManagedClusterJoiningController(
-		o.ClusterName,
+		o.ClusterID,
 		hubClusterClient,
 		hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
 		controllerContext.EventRecorder,
@@ -312,7 +313,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	// create ManagedClusterLeaseController to keep the spoke cluster heartbeat
 	managedClusterLeaseController := managedcluster.NewManagedClusterLeaseController(
-		o.ClusterName,
+		o.ClusterID,
 		hubKubeClient,
 		hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
 		controllerContext.EventRecorder,
@@ -320,7 +321,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	// create NewManagedClusterStatusController to update the spoke cluster status
 	managedClusterHealthCheckController := managedcluster.NewManagedClusterStatusController(
-		o.ClusterName,
+		o.ClusterID,
 		hubClusterClient,
 		hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
 		spokeKubeClient.Discovery(),
@@ -338,7 +339,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.ClusterClaim) {
 		// create managedClusterClaimController to sync cluster claims
 		managedClusterClaimController = managedcluster.NewManagedClusterClaimController(
-			o.ClusterName,
+			o.ClusterID,
 			o.MaxCustomClusterClaims,
 			hubClusterClient,
 			hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
@@ -351,7 +352,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	var addOnRegistrationController factory.Controller
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.AddonManagement) {
 		addOnLeaseController = addon.NewManagedClusterAddOnLeaseController(
-			o.ClusterName,
+			o.ClusterID,
 			addOnClient,
 			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
 			hubKubeClient.CoordinationV1(),
@@ -361,7 +362,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		)
 
 		addOnRegistrationController = addon.NewAddOnRegistrationController(
-			o.ClusterName,
+			o.ClusterID,
 			o.AgentName,
 			kubeconfigData,
 			addOnClient,
@@ -402,6 +403,8 @@ func (o *SpokeAgentOptions) AddFlags(fs *pflag.FlagSet) {
 	features.DefaultSpokeMutableFeatureGate.AddFlag(fs)
 	fs.StringVar(&o.ClusterName, "cluster-name", o.ClusterName,
 		"If non-empty, will use as cluster name instead of generated random name.")
+	fs.BoolVar(&o.ReplaceByClusterID, "replace-by-cluster-id", false,
+		"If true, will replace the cluster name with the cluster ID.")
 	fs.StringVar(&o.BootstrapKubeconfig, "bootstrap-kubeconfig", o.BootstrapKubeconfig,
 		"The path of the kubeconfig file for agent bootstrap.")
 	fs.StringVar(&o.HubKubeconfigSecret, "hub-kubeconfig-secret", o.HubKubeconfigSecret,
@@ -467,6 +470,12 @@ func (o *SpokeAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, 
 
 	// load or generate cluster/agent names
 	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames()
+
+	if o.ReplaceByClusterID {
+		o.ClusterID = string(uuid.NewUUID())
+	} else {
+		o.ClusterID = o.ClusterName
+	}
 
 	return nil
 }
